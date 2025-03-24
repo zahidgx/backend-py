@@ -2,6 +2,9 @@ from flask import jsonify, request
 from models.alerta import AlertaModel
 import pandas as pd
 from bson import ObjectId
+from config.database import mongo
+from flask import send_file
+import io
 
 # Agregar una alerta
 def agregar_alerta():
@@ -51,9 +54,14 @@ def importar_excel():
     mongo.db.alertas.insert_many(data)  # Ahora usa la colección "alertas"
     return jsonify({"message": "Datos importados correctamente"}), 201
 
-# Exportar alertas a un archivo Excel
+# Exportar alertas y permitir descarga desde la página web
 def exportar_excel():
-    alertas = AlertaModel.obtener_todas_alertas()
-    df = pd.DataFrame(alertas)
-    df.to_excel("alertas_exportadas.xlsx", index=False)
-    return jsonify({"message": "Archivo Excel exportado con éxito"}), 200
+    alertas = list(mongo.db.alertas.find({}, {"_id": 0}))  # Excluir _id
+    df = pd.DataFrame(alertas)  # Convertir a DataFrame
+    
+    output = io.BytesIO()  # Crear buffer en memoria
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        df.to_excel(writer, index=False, sheet_name="Alertas")
+
+    output.seek(0)  # Volver al inicio del archivo
+    return send_file(output, download_name="alertas.xlsx", as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")

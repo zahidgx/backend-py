@@ -1,7 +1,12 @@
-from flask import jsonify, request
+from flask import jsonify, request, send_file
 from models.dispositivo import DispositivoModel
 import pandas as pd
 from bson import ObjectId
+from bson.json_util import dumps
+from werkzeug.utils import secure_filename
+from io import BytesIO
+from config.database import mongo
+
 
 # Agregar un dispositivo
 def agregar_dispositivo():
@@ -45,15 +50,37 @@ def eliminar_dispositivo(id):
 
 # Importar dispositivos desde un archivo Excel
 def importar_excel():
-    file = request.files['file']
-    df = pd.read_excel(file)
-    data = df.to_dict(orient="records")
-    mongo.db.dispositivos.insert_many(data)  # Ahora usa la colección "dispositivos"
-    return jsonify({"message": "Datos importados correctamente"}), 201
+    try:
+        file = request.files['file']
+        df = pd.read_excel(file)
+        data = df.to_dict(orient="records")
 
-# Exportar dispositivos a un archivo Excel
+        if data:
+            mongo.db.dispositivos.insert_many(data)
+            return jsonify({"message": "Datos importados correctamente"}), 201
+        else:
+            return jsonify({"message": "El archivo está vacío o no tiene datos válidos"}), 400
+    except Exception as e:
+        return jsonify({"message": f"Error al importar: {str(e)}"}), 500
+
+
+# Exportar dispositivos a un archivo Excel y enviarlo como respuesta
 def exportar_excel():
-    dispositivos = DispositivoModel.obtener_todos_dispositivos()
-    df = pd.DataFrame(dispositivos)
-    df.to_excel("dispositivos_exportados.xlsx", index=False)
-    return jsonify({"message": "Archivo Excel exportado con éxito"}), 200
+    try:
+        dispositivos = DispositivoModel.obtener_todos_dispositivos()
+        if not dispositivos:
+            return jsonify({"message": "No hay dispositivos para exportar"}), 400
+
+        df = pd.DataFrame(dispositivos)
+
+        # Convertir el DataFrame en un archivo Excel en memoria
+        output = BytesIO()
+        with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+            df.to_excel(writer, index=False, sheet_name="Dispositivos")
+            writer.close()
+
+        output.seek(0)
+
+        return send_file(output, download_name="dispositivos_exportados.xlsx", as_attachment=True, mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    except Exception as e:
+        return jsonify({"message": f"Error al exportar: {str(e)}"}), 500
