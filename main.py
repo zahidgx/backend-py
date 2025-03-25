@@ -10,7 +10,7 @@ app = Flask(__name__)
 CORS(app)  # Permite peticiones desde el frontend
 
 # Configuración de MongoDB
-app.config["MONGO_URI"] = "mongodb://localhost:27017/SoundAlertIA"
+app.config["MONGO_URI"] = "mongodb+srv://promz:gokucruz@cluster1.bv0kt.mongodb.net/SoundAlertIA?retryWrites=true&w=majority&appName=Cluster1"
 mongo.init_app(app)
 
 # Registrar las rutas de alertas
